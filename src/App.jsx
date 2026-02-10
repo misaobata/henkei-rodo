@@ -22,10 +22,25 @@ const WorkSystemModal = ({ isOpen, onClose }) => {
     // 1年単位の変形用
     monthlyTotalHours: {}, // { '2024-01': 160, '2024-02': 150, ... }
     monthDisplayType: 'start_month', // 'start_month' or 'end_month'
-    inheritCompanyHolidays: true
+    inheritCompanyHolidays: true,
+    // 固定時間制用
+    fixedSettingUnit: 'all', // 'all' or 'daily'
+    fixedAmRange: { start: '09:00', end: '13:00' },
+    fixedPmRange: { start: '14:00', end: '18:00' },
+    fixedDailySettings: [
+      { day: '月', startTime: '09:00', endTime: '18:00', breakStartTime: '12:00', breakEndTime: '13:00', isHoliday: false },
+      { day: '火', startTime: '09:00', endTime: '18:00', breakStartTime: '12:00', breakEndTime: '13:00', isHoliday: false },
+      { day: '水', startTime: '09:00', endTime: '18:00', breakStartTime: '12:00', breakEndTime: '13:00', isHoliday: false },
+      { day: '木', startTime: '09:00', endTime: '18:00', breakStartTime: '12:00', breakEndTime: '13:00', isHoliday: false },
+      { day: '金', startTime: '09:00', endTime: '18:00', breakStartTime: '12:00', breakEndTime: '13:00', isHoliday: false },
+      { day: '土', startTime: '09:00', endTime: '18:00', breakStartTime: '12:00', breakEndTime: '13:00', isHoliday: true },
+      { day: '日', startTime: '09:00', endTime: '18:00', breakStartTime: '12:00', breakEndTime: '13:00', isHoliday: true },
+    ],
+    fixedCalendarType: 'inherit', // 'inherit' or 'add_holiday'
   });
 
   const [highlightedDays, setHighlightedDays] = useState([]);
+  const [activeFixedDayIdx, setActiveFixedDayIdx] = useState(0);
 
   // Preset holidays logic
   React.useEffect(() => {
@@ -494,48 +509,299 @@ const WorkSystemModal = ({ isOpen, onClose }) => {
               <>
                 {step === 2 && (
                   <div className="animate-slide-in">
-                    <h2 className="form-title">勤務設定</h2>
-                    <div className="form-group">
-                      <label>標準の就業時間</label>
-                      <div className="date-row">
-                        <input type="text" value={formData.fixedStartTime} onChange={e => setFormData({ ...formData, fixedStartTime: e.target.value })} />
-                        <span style={{ padding: '8px' }}>-</span>
-                        <input type="text" value={formData.fixedEndTime} onChange={e => setFormData({ ...formData, fixedEndTime: e.target.value })} />
+                    <h2 className="form-title">労働時間と休憩時間</h2>
+
+                    <div className="form-section-v2">
+                      <div className="form-group">
+                        <label className="section-sub-label">設定の単位</label>
+                        <div className="radio-list-v2">
+                          <label className={`radio-card ${formData.fixedSettingUnit === 'all' ? 'active' : ''}`}>
+                            <input type="radio" checked={formData.fixedSettingUnit === 'all'} onChange={() => setFormData({ ...formData, fixedSettingUnit: 'all' })} />
+                            <div className="radio-dot"></div>
+                            <span className="radio-text">すべての曜日一律に設定</span>
+                          </label>
+                          <label className={`radio-card ${formData.fixedSettingUnit === 'daily' ? 'active' : ''}`}>
+                            <input type="radio" checked={formData.fixedSettingUnit === 'daily'} onChange={() => setFormData({ ...formData, fixedSettingUnit: 'daily' })} />
+                            <div className="radio-dot"></div>
+                            <span className="radio-text">曜日別に設定</span>
+                          </label>
+                        </div>
                       </div>
-                    </div>
-                    <div className="form-group">
-                      <label>休憩時間</label>
-                      <input type="text" className="input-full" value={formData.fixedBreakTime} onChange={e => setFormData({ ...formData, fixedBreakTime: e.target.value })} />
+
+                      {formData.fixedSettingUnit === 'daily' && (
+                        <div className="day-selector-v2">
+                          {formData.fixedDailySettings.map((ds, idx) => (
+                            <button
+                              key={idx}
+                              className={`day-tab-btn ${activeFixedDayIdx === idx ? 'active' : ''} ${ds.isHoliday ? 'holiday' : ''}`}
+                              onClick={() => setActiveFixedDayIdx(idx)}
+                            >
+                              {ds.day}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="settings-panel-v2">
+                        {formData.fixedSettingUnit === 'daily' && (
+                          <div className="panel-header-v2">
+                            <span className="active-day-name">{formData.fixedDailySettings[activeFixedDayIdx].day}曜日</span>
+                            <button
+                              className={`btn-toggle-holiday ${formData.fixedDailySettings[activeFixedDayIdx].isHoliday ? 'active' : ''}`}
+                              onClick={() => {
+                                const newSettings = [...formData.fixedDailySettings];
+                                newSettings[activeFixedDayIdx].isHoliday = !newSettings[activeFixedDayIdx].isHoliday;
+                                setFormData({ ...formData, fixedDailySettings: newSettings });
+                              }}
+                            >
+                              {formData.fixedDailySettings[activeFixedDayIdx].isHoliday ? '休日に設定中' : '所定休日にする'}
+                            </button>
+                          </div>
+                        )}
+
+                        {!((formData.fixedSettingUnit === 'daily') && formData.fixedDailySettings[activeFixedDayIdx].isHoliday) ? (
+                          <>
+                            <div className="form-group">
+                              <label className="required">就業時間</label>
+                              <div className="time-range-input-v2">
+                                <div className="time-box">
+                                  <input
+                                    type="text"
+                                    value={formData.fixedSettingUnit === 'all' ? formData.fixedStartTime : formData.fixedDailySettings[activeFixedDayIdx].startTime}
+                                    onChange={e => {
+                                      if (formData.fixedSettingUnit === 'all') {
+                                        setFormData({ ...formData, fixedStartTime: e.target.value });
+                                      } else {
+                                        const newSettings = [...formData.fixedDailySettings];
+                                        newSettings[activeFixedDayIdx].startTime = e.target.value;
+                                        setFormData({ ...formData, fixedDailySettings: newSettings });
+                                      }
+                                    }}
+                                  />
+                                  <span className="icon-clock">🕒</span>
+                                </div>
+                                <span className="dash"> - </span>
+                                <div className="time-box">
+                                  <input
+                                    type="text"
+                                    value={formData.fixedSettingUnit === 'all' ? formData.fixedEndTime : formData.fixedDailySettings[activeFixedDayIdx].endTime}
+                                    onChange={e => {
+                                      if (formData.fixedSettingUnit === 'all') {
+                                        setFormData({ ...formData, fixedEndTime: e.target.value });
+                                      } else {
+                                        const newSettings = [...formData.fixedDailySettings];
+                                        newSettings[activeFixedDayIdx].endTime = e.target.value;
+                                        setFormData({ ...formData, fixedDailySettings: newSettings });
+                                      }
+                                    }}
+                                  />
+                                  <span className="icon-clock">🕒</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="form-group">
+                              <label>休憩時間</label>
+                              <div className="time-range-input-v2">
+                                <div className="time-box">
+                                  <input
+                                    type="text"
+                                    value={formData.fixedSettingUnit === 'all' ? formData.fixedBreakTime.split('-')[0] : formData.fixedDailySettings[activeFixedDayIdx].breakStartTime}
+                                    onChange={e => {
+                                      if (formData.fixedSettingUnit === 'daily') {
+                                        const newSettings = [...formData.fixedDailySettings];
+                                        newSettings[activeFixedDayIdx].breakStartTime = e.target.value;
+                                        setFormData({ ...formData, fixedDailySettings: newSettings });
+                                      }
+                                    }}
+                                  />
+                                  <span className="icon-clock">🕒</span>
+                                </div>
+                                <span className="dash"> - </span>
+                                <div className="time-box">
+                                  <input
+                                    type="text"
+                                    value={formData.fixedSettingUnit === 'all' ? formData.fixedBreakTime.split('-')[1] : formData.fixedDailySettings[activeFixedDayIdx].breakEndTime}
+                                    onChange={e => {
+                                      if (formData.fixedSettingUnit === 'daily') {
+                                        const newSettings = [...formData.fixedDailySettings];
+                                        newSettings[activeFixedDayIdx].breakEndTime = e.target.value;
+                                        setFormData({ ...formData, fixedDailySettings: newSettings });
+                                      }
+                                    }}
+                                  />
+                                  <span className="icon-clock">🕒</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="dual-column-v2">
+                              <div className="form-group">
+                                <label className="required">半休の範囲（午前）</label>
+                                <div className="time-range-input-v2 compact">
+                                  <div className="time-box">
+                                    <input type="text" value={formData.fixedAmRange.start} onChange={e => setFormData({ ...formData, fixedAmRange: { ...formData.fixedAmRange, start: e.target.value } })} />
+                                    <span className="icon-clock">🕒</span>
+                                  </div>
+                                  <span className="dash">-</span>
+                                  <div className="time-box">
+                                    <input type="text" value={formData.fixedAmRange.end} onChange={e => setFormData({ ...formData, fixedAmRange: { ...formData.fixedAmRange, end: e.target.value } })} />
+                                    <span className="icon-clock">🕒</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="form-group">
+                                <label className="required">半休の範囲（午後）</label>
+                                <div className="time-range-input-v2 compact">
+                                  <div className="time-box">
+                                    <input type="text" value={formData.fixedPmRange.start} onChange={e => setFormData({ ...formData, fixedPmRange: { ...formData.fixedPmRange, start: e.target.value } })} />
+                                    <span className="icon-clock">🕒</span>
+                                  </div>
+                                  <span className="dash">-</span>
+                                  <div className="time-box">
+                                    <input type="text" value={formData.fixedPmRange.end} onChange={e => setFormData({ ...formData, fixedPmRange: { ...formData.fixedPmRange, end: e.target.value } })} />
+                                    <span className="icon-clock">🕒</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="holiday-status-v2">
+                            この曜日は所定休日として設定されています。
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="form-group" style={{ marginTop: '2rem', paddingTop: '2rem', borderTop: '1px solid var(--border-color)' }}>
+                        <label className="section-sub-label">休日の設定方法</label>
+                        <div className="radio-list-v2 vertical">
+                          <label className={`radio-card horizontal ${formData.fixedCalendarType === 'inherit' ? 'active' : ''}`}>
+                            <input type="radio" checked={formData.fixedCalendarType === 'inherit'} onChange={() => setFormData({ ...formData, fixedCalendarType: 'inherit' })} />
+                            <div className="radio-dot"></div>
+                            <div className="radio-content">
+                              <span className="radio-text">会社カレンダーをそのまま適用</span>
+                              <span className="radio-sub">日曜：法定休日、土曜：所定休日として反映されます</span>
+                            </div>
+                          </label>
+                          <label className={`radio-card horizontal ${formData.fixedCalendarType === 'add_holiday' ? 'active' : ''}`}>
+                            <input type="radio" checked={formData.fixedCalendarType === 'add_holiday'} onChange={() => setFormData({ ...formData, fixedCalendarType: 'add_holiday' })} />
+                            <div className="radio-dot"></div>
+                            <div className="radio-content">
+                              <span className="radio-text">会社カレンダーに所定休日を追加</span>
+                              <span className="radio-sub">会社カレンダーの休みに加え、独自に休日を追加できます</span>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
 
                 {step === 3 && (
-                  <div className="animate-slide-in">
-                    <h2 className="form-title">カレンダー設定</h2>
-                    <p className="helper-text">休日とする日付をカレンダーから選択してください（赤色は休日）。</p>
-                    <div className="cal-v2-scroll-area" style={{ height: '400px' }}>
-                      {months.map((month, mIdx) => (
-                        <div key={month} className="cal-v2-month-block">
-                          <div className="cal-v2-month-name">{month}</div>
-                          <div className="cal-v2-grid">
-                            {Array.from({ length: 30 }).map((_, i) => {
-                              const dayKey = `f-${mIdx}-${i}`;
-                              const isHoliday = assignedDays[dayKey];
-                              return (
-                                <div
-                                  key={i}
-                                  className="cal-v2-day"
-                                  onClick={() => setAssignedDays({ ...assignedDays, [dayKey]: !isHoliday })}
-                                  style={{ backgroundColor: isHoliday ? '#dc2626' : 'white', color: isHoliday ? 'white' : 'inherit' }}
-                                >
-                                  {i + 1}
-                                </div>
-                              );
-                            })}
+                  <div className="calendar-assignment-container animate-fade-in" style={{ height: '520px' }}>
+                    <div className="cal-assignment-header">
+                      <div className="operation-guide" style={{ flex: 1, marginBottom: 0 }}>
+                        <div className="guide-title">操作ガイド</div>
+                        <div className="guide-steps">
+                          {formData.fixedCalendarType === 'inherit' ? (
+                            <span className="g-step">会社カレンダーの内容を確認してください</span>
+                          ) : (
+                            <>
+                              <span className="g-step">① 右の「休日」を選択</span>
+                              <span className="g-arrow">→</span>
+                              <span className="g-step">② 日付をクリックして追加</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="cal-assignment-main">
+                      <div className="cal-scroll-area">
+                        {months.map((month, mIdx) => (
+                          <div key={month} className="month-assignment-block">
+                            <div className="month-header">
+                              <span className="month-name">{month}</span>
+                            </div>
+                            <div className="calendar-week-row header">
+                              <div>日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div>土</div><div>計</div>
+                            </div>
+                            {/* Simplified grid for prototype: 5 weeks */}
+                            {[0, 1, 2, 3, 4].map(wIdx => (
+                              <div key={wIdx} className="calendar-week-row">
+                                {[0, 1, 2, 3, 4, 5, 6].map(dIdx => {
+                                  const dayNum = wIdx * 7 + dIdx + 1;
+                                  if (dayNum > 31) return <div key={dIdx} className="cal-day-cell empty"></div>;
+
+                                  const dayKey = `f-${mIdx}-${wIdx}-${dIdx}`;
+                                  const isCompanyStat = dIdx === 0; // Sun
+                                  const isCompanySched = dIdx === 6; // Sat
+                                  const isAddedHoliday = assignedDays[dayKey] === 'holiday';
+
+                                  const isReadonly = formData.fixedCalendarType === 'inherit' || isCompanyStat || isCompanySched;
+
+                                  return (
+                                    <div
+                                      key={dIdx}
+                                      className={`cal-day-cell ${isAddedHoliday ? 'assigned holiday' : ''} ${isCompanyStat ? 'holiday' : ''} ${isCompanySched ? 'holiday' : ''} ${isReadonly ? 'readonly' : ''}`}
+                                      onClick={() => {
+                                        if (!isReadonly && formData.fixedCalendarType === 'add_holiday') {
+                                          setAssignedDays({
+                                            ...assignedDays,
+                                            [dayKey]: isAddedHoliday ? null : 'holiday'
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      <span className="day-number">{dayNum}</span>
+                                      {(isCompanyStat || isCompanySched || isAddedHoliday) && <span className="holiday-label">休</span>}
+                                    </div>
+                                  );
+                                })}
+                                <div className="week-total-value">-</div>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="cal-assignment-sidebar">
+                        <div className="sidebar-section pattern-picker">
+                          <label className="sidebar-label">休日の追加</label>
+                          {formData.fixedCalendarType === 'inherit' ? (
+                            <p className="helper-text">会社カレンダーを適用中のため、個別の追加はできません。</p>
+                          ) : (
+                            <div
+                              className="p-card-v2 active holiday-pill"
+                              style={{ borderLeft: `6px solid #ef4444` }}
+                            >
+                              <span className="p-name">追加の所定休日</span>
+                              <span className="p-time">終日</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="sidebar-section">
+                          <label className="sidebar-label">設定状況</label>
+                          <div className="summary-stat-group" style={{ margin: '0.5rem 0' }}>
+                            <div className="stat-card">
+                              <span className="stat-label">追加休日</span>
+                              <span className="stat-val">{Object.values(assignedDays).filter(v => v === 'holiday').length}<span className="unit">日</span></span>
+                            </div>
+                          </div>
+                          <div className="compliance-badge info">固定時間制</div>
+                        </div>
+
+                        <div className="sidebar-section">
+                          <label className="sidebar-label">凡例</label>
+                          <div className="check-list">
+                            <div className="check-item"><span className="indicator" style={{ color: '#f87171' }}>■</span> 法定休日 (日)</div>
+                            <div className="check-item"><span className="indicator" style={{ color: '#feb2b2' }}>■</span> 所定休日 (土)</div>
+                            <div className="check-item"><span className="indicator" style={{ color: '#ef4444' }}>■</span> 追加した休日</div>
                           </div>
                         </div>
-                      ))}
+                      </div>
                     </div>
                   </div>
                 )}

@@ -907,3 +907,277 @@ td {
     opacity: 1;
   }
 }
+
+/* Fixed Working Hours Refinements */
+.section-sub-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 0.75rem;
+}
+
+.radio-list-v2 {
+  display: flex;
+  gap: 1rem;
+}
+
+.radio-list-v2.vertical {
+  flex-direction: column;
+}
+
+.radio-card {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.radio-card.horizontal {
+  padding: 1.25rem;
+}
+
+.radio-card:hover {
+  border-color: var(--accent);
+  background: #f8fafc;
+}
+
+.radio-card.active {
+  border-color: var(--accent);
+  background: #f0fdfa;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.radio-card input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+}
+
+.radio-dot {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #cbd5e0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.radio-card.active .radio-dot {
+  border-color: var(--accent);
+}
+
+.radio-card.active .radio-dot::after {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background: var(--accent);
+  border-radius: 50%;
+}
+
+.radio-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.radio-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.radio-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.day-selector-v2 {
+  display: flex;
+  gap: 4px;
+  margin: 1.5rem 0 1rem;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.day-tab-btn {
+  flex: 1;
+  padding: 8px 0;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.day-tab-btn.active {
+  background: white;
+  color: var(--accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.day-tab-btn.holiday {
+  color: #ef4444;
+}
+
+.settings-panel-v2 {
+  background: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.panel-header-v2 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px dashed var(--border-color);
+}
+
+.active-day-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.btn-toggle-holiday {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #edf2f7;
+  color: #4a5568;
+  border: 1px solid #cbd5e0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-toggle-holiday.active {
+  background: #fff5f5;
+  color: #e53e3e;
+  border-color: #feb2b2;
+}
+
+.time-range-input-v2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.time-box {
+  position: relative;
+  flex: 1;
+  max-width: 160px;
+}
+
+.time-box input {
+  width: 100%;
+  padding: 8px 32px 8px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: white;
+}
+
+.icon-clock {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.dual-column-v2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.compact input {
+  padding: 6px 32px 6px 10px;
+}
+
+.holiday-status-v2 {
+  text-align: center;
+  padding: 2rem;
+  color: #e53e3e;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.cal-legend-v2 {
+  display: flex;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.legend-item .box {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.box.stat {
+  background: #fee2e2;
+  border: 1px solid #f87171;
+}
+
+.box.sched {
+  background: #fff5f5;
+  border: 1px solid #feb2b2;
+}
+
+.box.added {
+  background: #fca5a5;
+  border: 1px solid #ef4444;
+}
+
+.cal-v2-day.company-stat {
+  background: #fee2e2 !important;
+  color: #991b1b;
+}
+
+.cal-v2-day.company-sched {
+  background: #fff5f5 !important;
+  color: #c53030;
+}
+
+.cal-v2-day.added-sched {
+  background: #fca5a5 !important;
+  color: white !important;
+}
+
+.cal-v2-day.readonly {
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.cal-v2-day .h-label {
+  font-size: 8px;
+  font-weight: 800;
+  margin-top: 2px;
+}
