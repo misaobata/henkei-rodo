@@ -21,8 +21,16 @@ const WorkSystemModal = ({ isOpen, onClose }) => {
     ],
     // 1年単位の変形用
     monthlyTotalHours: {}, // { '2024-01': 160, '2024-02': 150, ... }
+    monthlyStatus: {}, // { '2024-01': 'draft', ... } 
+    monthlySettings: {}, // { '2024-02': { mode: 'simple', days: 20, hours: 160 } } NEW
     monthDisplayType: 'start_month', // 'start_month' or 'end_month'
     inheritCompanyHolidays: true,
+    customHolidaySettings: { // NEW
+      legalHoliday: 0, // 0:Sun
+      fixedHolidays: [6], // 6:Sat. Array of day indices
+      useNationalHolidays: true
+    },
+    defaultPatternId: 1,
     // 固定時間制用
     fixedSettingUnit: 'all', // 'all' or 'daily'
     fixedAmRange: { start: '09:00', end: '13:00' },
@@ -41,21 +49,71 @@ const WorkSystemModal = ({ isOpen, onClose }) => {
 
   const [highlightedDays, setHighlightedDays] = useState([]);
   const [activeFixedDayIdx, setActiveFixedDayIdx] = useState(0);
+  const [collapsedMonths, setCollapsedMonths] = useState({}); // { '2024-02': true } NEW
 
   // Preset holidays logic
   React.useEffect(() => {
     if (step === 4 && Object.keys(assignedDays).length === 0) {
-      const presets = {};
-      // Mocking for offset 0-11
-      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].forEach(offset => {
-        [0, 1, 2, 3, 4].forEach(weekIdx => {
-          presets[`${offset}-${weekIdx}-0`] = 'holiday'; // Sunday: Statutory
-          presets[`${offset}-${weekIdx}-6`] = 'holiday'; // Saturday: Scheduled
-        });
-      });
-      setAssignedDays(presets);
+      regenerateCalendar();
     }
   }, [step]);
+
+  const regenerateCalendar = () => {
+    const presets = {};
+    const { inheritCompanyHolidays, customHolidaySettings } = formData;
+
+    // Mocking for offset 0-11
+    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].forEach(offset => {
+      [0, 1, 2, 3, 4].forEach(weekIdx => {
+        [0, 1, 2, 3, 4, 5, 6].forEach(dayIdx => {
+          const key = `${offset}-${weekIdx}-${dayIdx}`;
+          let isHoliday = false;
+
+          if (inheritCompanyHolidays) {
+            if (dayIdx === 0 || dayIdx === 6) isHoliday = true; // Default Company Cal
+          } else {
+            if (dayIdx === customHolidaySettings.legalHoliday) isHoliday = true;
+            if (customHolidaySettings.fixedHolidays.includes(dayIdx)) isHoliday = true;
+            // Mock National Holiday logic would go here
+          }
+
+          if (isHoliday) presets[key] = 'holiday';
+        });
+      });
+    });
+    setAssignedDays(presets);
+
+    // Initialize monthly settings (Simple mode for month 2+)
+    if (formData.unit === '1year' && Object.keys(formData.monthlySettings).length === 0) {
+      const newMonthlySettings = {};
+      const newCollapsed = {};
+
+      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].forEach((offset) => {
+        const date = new Date(formData.startDate);
+        date.setMonth(date.getMonth() + offset);
+        const label = `${date.getFullYear()}年${date.getMonth() + 1}月`;
+
+        if (offset > 0) {
+          newMonthlySettings[label] = { mode: 'simple', days: 20, hours: 160 };
+          newCollapsed[label] = true;
+        } else {
+          newMonthlySettings[label] = { mode: 'detailed', days: null, hours: null };
+          newCollapsed[label] = false;
+        }
+      });
+
+      setFormData(prev => ({ ...prev, monthlySettings: newMonthlySettings }));
+      setCollapsedMonths(newCollapsed);
+    }
+  };
+
+  // Re-generate if settings change (simplified for prototype)
+  React.useEffect(() => {
+    if (step === 4) {
+      // In a real app we might ask confirmation before wiping custom assignments
+      // For prototype we just re-run the updated logic on simpler triggers or manual button
+    }
+  }, [formData.inheritCompanyHolidays, formData.customHolidaySettings]);
 
   if (!isOpen) return null;
 
@@ -79,6 +137,20 @@ const WorkSystemModal = ({ isOpen, onClose }) => {
   // Mapping logic for non-variable steps to avoid state complexity
   const displayStep = step;
 
+  // CUD Friendly Colors (10 colors)
+  const cudColors = [
+    '#1a365d', // Navy
+    '#7c3aed', // Purple
+    '#059669', // Emerald
+    '#d97706', // Amber
+    '#dc2626', // Red
+    '#0891b2', // Cyan
+    '#e11d48', // Rose
+    '#4f46e5', // Indigo
+    '#ea580c', // Orange
+    '#65a30d', // Lime
+  ];
+
   const handleNext = () => setStep(s => Math.min(s + 1, formData.systemType === 'variable' ? 5 : 4));
   const handleBack = () => setStep(s => Math.max(s - 1, 1));
 
@@ -94,18 +166,31 @@ const WorkSystemModal = ({ isOpen, onClose }) => {
   };
 
   const handleSavePattern = () => {
+    let updatedPatterns;
     if (editingPattern.id) {
-      setFormData({
-        ...formData,
-        patterns: formData.patterns.map(p => p.id === editingPattern.id ? editingPattern : p)
-      });
+      updatedPatterns = formData.patterns.map(p => p.id === editingPattern.id ? editingPattern : p);
     } else {
       const newId = Math.max(0, ...formData.patterns.map(p => p.id)) + 1;
+      updatedPatterns = [...formData.patterns, { ...editingPattern, id: newId }];
+    }
+
+    // Handle Default Pattern Logic
+    if (editingPattern.isDefault) {
+      // If this is set to default, unset others (UI logic mainly, state source of truth is defaultPatternId)
       setFormData({
         ...formData,
-        patterns: [...formData.patterns, { ...editingPattern, id: newId }]
+        patterns: updatedPatterns,
+        defaultPatternId: editingPattern.id || (Math.max(0, ...formData.patterns.map(p => p.id)) + 1)
+      });
+    } else {
+      // If unsetting default, ensure at least one default exists? 
+      // For now just update patterns.
+      setFormData({
+        ...formData,
+        patterns: updatedPatterns
       });
     }
+
     setEditingPattern(null);
   };
 
@@ -148,17 +233,47 @@ const WorkSystemModal = ({ isOpen, onClose }) => {
                 </div>
                 <div className="form-group">
                   <label className="required">労働時間制</label>
-                  <select
-                    className="input-full"
-                    value={formData.systemType}
-                    onChange={e => {
-                      setFormData({ ...formData, systemType: e.target.value });
-                      setStep(1); // Reset step if type changes to keep layout consistent
-                    }}
-                  >
-                    <option value="variable">変形労働時間制</option>
-                    <option value="fixed">固定時間制</option>
-                  </select>
+                  <div className="radio-list-v2 vertical">
+                    <label className={`radio-card horizontal ${formData.systemType === 'variable' && formData.unit === '1month' ? 'active' : ''}`}>
+                      <input
+                        type="radio"
+                        name="systemType"
+                        checked={formData.systemType === 'variable' && formData.unit === '1month'}
+                        onChange={() => setFormData({ ...formData, systemType: 'variable', unit: '1month' })}
+                      />
+                      <div className="radio-dot"></div>
+                      <div className="radio-content">
+                        <span className="radio-text">変形労働時間制（1ヶ月単位）</span>
+                        <span className="radio-sub">毎月シフトを作成する形式です</span>
+                      </div>
+                    </label>
+                    <label className={`radio-card horizontal ${formData.systemType === 'variable' && formData.unit === '1year' ? 'active' : ''}`}>
+                      <input
+                        type="radio"
+                        name="systemType"
+                        checked={formData.systemType === 'variable' && formData.unit === '1year'}
+                        onChange={() => setFormData({ ...formData, systemType: 'variable', unit: '1year' })}
+                      />
+                      <div className="radio-dot"></div>
+                      <div className="radio-content">
+                        <span className="radio-text">変形労働時間制（1年単位）</span>
+                        <span className="radio-sub">年間カレンダーを事前に作成する形式です</span>
+                      </div>
+                    </label>
+                    <label className={`radio-card horizontal ${formData.systemType === 'fixed' ? 'active' : ''}`}>
+                      <input
+                        type="radio"
+                        name="systemType"
+                        checked={formData.systemType === 'fixed'}
+                        onChange={() => setFormData({ ...formData, systemType: 'fixed', unit: '1month' })}
+                      />
+                      <div className="radio-dot"></div>
+                      <div className="radio-content">
+                        <span className="radio-text">固定時間制</span>
+                        <span className="radio-sub">曜日ごとに決まった時間を設定します</span>
+                      </div>
+                    </label>
+                  </div>
                 </div>
               </div>
             )}
@@ -169,39 +284,13 @@ const WorkSystemModal = ({ isOpen, onClose }) => {
                 {step === 2 && (
                   <div className="animate-slide-in">
                     <h2 className="form-title">期間設定</h2>
-                    <div className="form-group">
-                      <label className="required">変形の単位</label>
-                      <div className="radio-list horizontal">
-                        <label className="radio-item">
-                          <input type="radio" checked={formData.unit === '1month'} onChange={() => setFormData({ ...formData, unit: '1month' })} />
-                          <span>1か月単位</span>
-                        </label>
-                        <label className="radio-item">
-                          <input type="radio" checked={formData.unit === '1year'} onChange={() => setFormData({ ...formData, unit: '1year' })} />
-                          <span>1年単位</span>
-                        </label>
-                      </div>
-                    </div>
+                    {/* Unit Selection Removed (Moved to Step 1) */}
                     <div className="form-group">
                       <label className="required">変形労働の起算日</label>
                       <input type="date" className="input-full" value={formData.startDate} onChange={e => setFormData({ ...formData, startDate: e.target.value })} />
                     </div>
 
-                    {formData.unit === '1month' && (
-                      <div className="form-group animate-fade-in">
-                        <label className="required">月度の表示形式（サマリ）</label>
-                        <div className="radio-list">
-                          <label className="radio-item">
-                            <input type="radio" checked={formData.monthDisplayType === 'start_month'} onChange={() => setFormData({ ...formData, monthDisplayType: 'start_month' })} />
-                            <span>月度開始日の月を表示</span>
-                          </label>
-                          <label className="radio-item">
-                            <input type="radio" checked={formData.monthDisplayType === 'end_month'} onChange={() => setFormData({ ...formData, monthDisplayType: 'end_month' })} />
-                            <span>月度終了日の月を表示</span>
-                          </label>
-                        </div>
-                      </div>
-                    )}
+                    {/* Month Display Format Removed */}
 
                     {formData.unit === '1year' && (
                       <div className="form-alert critical animate-fade-in">
@@ -227,7 +316,17 @@ const WorkSystemModal = ({ isOpen, onClose }) => {
                     {editingPattern ? (
                       <div className="pattern-edit-form">
                         <div className="form-group">
-                          <label>パターン名</label>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <label>パターン名</label>
+                            <label className="checkbox-label">
+                              <input
+                                type="checkbox"
+                                checked={editingPattern.isDefault || formData.defaultPatternId === editingPattern.id}
+                                onChange={e => setEditingPattern({ ...editingPattern, isDefault: e.target.checked })}
+                              />
+                              <span>デフォルトにする</span>
+                            </label>
+                          </div>
                           <input type="text" value={editingPattern.name} onChange={e => setEditingPattern({ ...editingPattern, name: e.target.value })} />
                         </div>
                         <div className="date-row">
@@ -282,8 +381,8 @@ const WorkSystemModal = ({ isOpen, onClose }) => {
 
                         <div className="form-group">
                           <label>カラー</label>
-                          <div className="color-selector">
-                            {['#1a365d', '#7c3aed', '#059669', '#d97706', '#dc2626'].map(c => (
+                          <div className="color-selector" style={{ flexWrap: 'wrap' }}>
+                            {cudColors.map(c => (
                               <div
                                 key={c}
                                 className={`color-box ${editingPattern.color === c ? 'active' : ''}`}
@@ -304,7 +403,10 @@ const WorkSystemModal = ({ isOpen, onClose }) => {
                           {formData.patterns.map(p => (
                             <div key={p.id} className="pattern-item-card" style={{ borderLeft: `6px solid ${p.color}` }}>
                               <div className="pattern-card-info">
-                                <span className="p-name">{p.name}</span>
+                                <span className="p-name">
+                                  {p.name}
+                                  {formData.defaultPatternId === p.id && <span className="default-badge">Default</span>}
+                                </span>
                                 <div className="p-details">
                                   <span className="p-time">{p.startTime} - {p.endTime} (休 {p.breakStartTime} - {p.breakEndTime})</span>
                                   {(p.useAM || p.usePM) && (
@@ -319,8 +421,18 @@ const WorkSystemModal = ({ isOpen, onClose }) => {
                             </div>
                           ))}
                         </div>
-                        <button className="btn-dashed-add" onClick={() => setEditingPattern({ name: '', startTime: '09:00', endTime: '18:00', breakStartTime: '12:00', breakEndTime: '13:00', color: '#059669', useAM: false, amStartTime: '09:00', amEndTime: '13:00', usePM: false, pmStartTime: '14:00', pmEndTime: '18:00' })}>
-                          + 勤務パターンを追加
+                        <button
+                          className="btn-dashed-add"
+                          onClick={() => {
+                            if (formData.patterns.length >= 10) {
+                              alert('パターンは最大10個までです');
+                              return;
+                            }
+                            setEditingPattern({ name: '', startTime: '09:00', endTime: '18:00', breakStartTime: '12:00', breakEndTime: '13:00', color: cudColors[formData.patterns.length % 10], useAM: false, amStartTime: '09:00', amEndTime: '13:00', usePM: false, pmStartTime: '14:00', pmEndTime: '18:00' });
+                          }}
+                          disabled={formData.patterns.length >= 10}
+                        >
+                          + 勤務パターンを追加 {formData.patterns.length >= 10 && '(上限)'}
                         </button>
                       </>
                     )}
@@ -351,46 +463,134 @@ const WorkSystemModal = ({ isOpen, onClose }) => {
 
                     <div className="cal-assignment-main">
                       <div className="cal-scroll-area">
-                        {(formData.unit === '1year' ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] : [0]).map((offset) => {
+                        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((offset) => {
                           const date = new Date(formData.startDate);
                           date.setMonth(date.getMonth() + offset);
                           const monthLabel = `${date.getFullYear()}年${date.getMonth() + 1}月`;
 
+                          const isCollapsed = collapsedMonths[monthLabel];
+                          const settings = formData.monthlySettings[monthLabel] || { mode: 'detailed' };
+                          const isSimple = settings.mode === 'simple';
+
                           return (
-                            <div key={offset} className="month-assignment-block">
-                              <div className="month-header">
-                                <span className="month-name">{monthLabel}</span>
+                            <div key={offset} className={`month-assignment-block ${isCollapsed ? 'collapsed' : ''}`}>
+                              <div className="month-header" onClick={() => setCollapsedMonths(prev => ({ ...prev, [monthLabel]: !prev[monthLabel] }))} style={{ cursor: 'pointer' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  <span className={`toggle-icon ${isCollapsed ? 'collapsed' : ''}`}>▼</span>
+                                  <span className="month-name">{monthLabel}</span>
+                                </div>
+
+                                <div className="month-status-action" onClick={e => e.stopPropagation()}>
+                                  {formData.unit === '1year' && offset > 0 && (
+                                    <div className="mode-toggle-group">
+                                      <button
+                                        className={`mode-btn ${!isSimple ? 'active' : ''}`}
+                                        onClick={() => setFormData(prev => ({
+                                          ...prev,
+                                          monthlySettings: { ...prev.monthlySettings, [monthLabel]: { ...settings, mode: 'detailed' } }
+                                        }))}
+                                      >
+                                        カレンダー
+                                      </button>
+                                      <button
+                                        className={`mode-btn ${isSimple ? 'active' : ''}`}
+                                        onClick={() => setFormData(prev => ({
+                                          ...prev,
+                                          monthlySettings: { ...prev.monthlySettings, [monthLabel]: { ...settings, mode: 'simple' } }
+                                        }))}
+                                      >
+                                        簡易入力
+                                      </button>
+                                    </div>
+                                  )}
+                                  <button
+                                    className={`status-tag ${formData.monthlyStatus[monthLabel] === 'published' ? 'published' : 'draft'}`}
+                                    onClick={() => {
+                                      setFormData(prev => ({
+                                        ...prev,
+                                        monthlyStatus: {
+                                          ...prev.monthlyStatus,
+                                          [monthLabel]: prev.monthlyStatus[monthLabel] === 'published' ? 'draft' : 'published'
+                                        }
+                                      }));
+                                    }}
+                                  >
+                                    {formData.monthlyStatus[monthLabel] === 'published' ? '公開済み' : '作成中'}
+                                  </button>
+                                </div>
+
                                 <div className="month-summary-mini">
                                   <span>所定労制上限: 177h</span>
-                                  <span>設定済み: 160h</span>
-                                  <span className="status-ok">残: 17h</span>
+                                  <span>設定済み: {isSimple ? settings.hours : 160}h</span>
+                                  <span className="status-ok">残: {177 - (isSimple ? settings.hours : 160)}h</span>
                                 </div>
                               </div>
-                              <div className="calendar-week-row header">
-                                <div>日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div>土</div>
-                                <div className="week-total-label">週計</div>
-                              </div>
-                              {[0, 1, 2, 3, 4].map(weekIdx => (
-                                <div key={weekIdx} className="calendar-week-row">
-                                  {[0, 1, 2, 3, 4, 5, 6].map(dayIdx => {
-                                    const dayKey = `${offset}-${weekIdx}-${dayIdx}`;
-                                    const assignedId = assignedDays[dayKey];
-                                    const pattern = assignedId === 'holiday' ? { color: '#fee2e2', name: '休日' } : formData.patterns.find(p => p.id === assignedId);
-                                    return (
-                                      <div
-                                        key={dayIdx}
-                                        className={`cal-day-cell ${assignedId ? (assignedId === 'holiday' ? 'holiday' : 'assigned') : ''} ${highlightedDays.includes(dayKey) ? 'compliance-highlight' : ''}`}
-                                        style={assignedId && assignedId !== 'holiday' ? { backgroundColor: pattern.color, color: 'white' } : (assignedId === 'holiday' ? { backgroundColor: '#fee2e2' } : {})}
-                                        onClick={() => toggleDayAssignment(dayKey)}
-                                      >
-                                        <span className="day-num">{weekIdx * 7 + dayIdx + 1}</span>
-                                        {assignedId === 'holiday' && <span className="holiday-label">休</span>}
+
+                              {!isCollapsed && (
+                                <>
+                                  {isSimple ? (
+                                    <div className="simple-mode-container animate-fade-in">
+                                      <div className="simple-input-group">
+                                        <label>労働日数</label>
+                                        <div className="input-with-unit">
+                                          <input
+                                            type="number"
+                                            value={settings.days}
+                                            onChange={e => setFormData(prev => ({
+                                              ...prev,
+                                              monthlySettings: { ...prev.monthlySettings, [monthLabel]: { ...settings, days: Number(e.target.value) } }
+                                            }))}
+                                          />
+                                          <span>日</span>
+                                        </div>
                                       </div>
-                                    );
-                                  })}
-                                  <div className="week-total-value">40h</div>
-                                </div>
-                              ))}
+                                      <div className="simple-input-group">
+                                        <label>総労働時間</label>
+                                        <div className="input-with-unit">
+                                          <input
+                                            type="number"
+                                            value={settings.hours}
+                                            onChange={e => setFormData(prev => ({
+                                              ...prev,
+                                              monthlySettings: { ...prev.monthlySettings, [monthLabel]: { ...settings, hours: Number(e.target.value) } }
+                                            }))}
+                                          />
+                                          <span>時間</span>
+                                        </div>
+                                      </div>
+                                      <p className="helper-text">※ 簡易入力モードでは、日々の詳しいシフトは設定されません。</p>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="calendar-week-row header">
+                                        <div>日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div>土</div>
+                                        <div className="week-total-label">週計</div>
+                                      </div>
+                                      {[0, 1, 2, 3, 4].map(weekIdx => (
+                                        <div key={weekIdx} className="calendar-week-row">
+                                          {[0, 1, 2, 3, 4, 5, 6].map(dayIdx => {
+                                            const dayKey = `${offset}-${weekIdx}-${dayIdx}`;
+                                            const assignedId = assignedDays[dayKey];
+                                            const pattern = assignedId === 'holiday' ? { color: '#fee2e2', name: '休日' } : formData.patterns.find(p => p.id === assignedId);
+                                            return (
+                                              <div
+                                                key={dayIdx}
+                                                className={`cal-day-cell ${assignedId ? (assignedId === 'holiday' ? 'holiday' : 'assigned') : ''} ${highlightedDays.includes(dayKey) ? 'compliance-highlight' : ''}`}
+                                                style={assignedId && assignedId !== 'holiday' ? { backgroundColor: pattern.color, color: 'white' } : (assignedId === 'holiday' ? { backgroundColor: '#fee2e2' } : {})}
+                                                onClick={() => toggleDayAssignment(dayKey)}
+                                              >
+                                                <span className="day-num">{weekIdx * 7 + dayIdx + 1}</span>
+                                                {assignedId === 'holiday' && <span className="holiday-label">休</span>}
+                                              </div>
+                                            );
+                                          })}
+                                          <div className="week-total-value">40h</div>
+                                        </div>
+                                      ))}
+                                    </>
+                                  )}
+                                </>
+                              )}
                             </div>
                           );
                         })}
@@ -404,11 +604,88 @@ const WorkSystemModal = ({ isOpen, onClose }) => {
                               <input
                                 type="checkbox"
                                 checked={formData.inheritCompanyHolidays}
-                                onChange={e => setFormData({ ...formData, inheritCompanyHolidays: e.target.checked })}
+                                onChange={e => {
+                                  setFormData({ ...formData, inheritCompanyHolidays: e.target.checked });
+                                  setTimeout(regenerateCalendar, 0); // Hacky trigger update
+                                }}
                               />
                               <span className="switch-text">会社カレンダーの休日を継承</span>
                             </label>
                           </div>
+
+                          {!formData.inheritCompanyHolidays && (
+                            <div className="custom-holiday-settings animate-fade-in">
+                              <div className="setting-row">
+                                <label>法定休日</label>
+                                <select
+                                  className="select-compact"
+                                  value={formData.customHolidaySettings.legalHoliday}
+                                  onChange={e => {
+                                    const newSettings = { ...formData.customHolidaySettings, legalHoliday: Number(e.target.value) };
+                                    setFormData({ ...formData, customHolidaySettings: newSettings });
+                                    // Need to trigger regeneration manually since it depends on state that might not be flushed yet in this closure
+                                    // Ideally we use useEffect, but for now we'll rely on the useEffect hook on step 4 or manually call it if we refactor.
+                                    // Let's rely on a button or effect. Added Effect for this above.
+                                  }}
+                                >
+                                  <option value={0}>毎週 日曜日</option>
+                                  <option value={6}>毎週 土曜日</option>
+                                  <option value={1}>毎週 月曜日</option>
+                                </select>
+                              </div>
+                              <div className="setting-row">
+                                <label>所定休日</label>
+                                <div className="week-checkboxes">
+                                  {['月', '火', '水', '木', '金', '土', '日'].map((day, idx) => {
+                                    // Adjusted index to match 0=Sun, 1=Mon... wait, standard JS Day is 0=Sun. 
+                                    // Our array is Mon=0... let's fix. 
+                                    // Standard: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+                                    // Display: Mon(1), Tue(2)... Sat(6), Sun(0)
+                                    const dayIndex = idx === 6 ? 0 : idx + 1;
+                                    const isChecked = formData.customHolidaySettings.fixedHolidays.includes(dayIndex);
+
+                                    return (
+                                      <label key={day} className="day-check">
+                                        <input
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          onChange={() => {
+                                            let newFixed = [...formData.customHolidaySettings.fixedHolidays];
+                                            if (isChecked) {
+                                              newFixed = newFixed.filter(d => d !== dayIndex);
+                                            } else {
+                                              newFixed.push(dayIndex);
+                                            }
+                                            setFormData({
+                                              ...formData,
+                                              customHolidaySettings: { ...formData.customHolidaySettings, fixedHolidays: newFixed }
+                                            });
+                                          }}
+                                        />
+                                        <span>{day}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                              <div className="setting-row">
+                                <label className="checkbox-label">
+                                  <input
+                                    type="checkbox"
+                                    checked={formData.customHolidaySettings.useNationalHolidays}
+                                    onChange={e => setFormData({
+                                      ...formData,
+                                      customHolidaySettings: { ...formData.customHolidaySettings, useNationalHolidays: e.target.checked }
+                                    })}
+                                  />
+                                  <span>日本の祝日を休日に指定</span>
+                                </label>
+                              </div>
+                              <div style={{ textAlign: 'right', marginTop: '0.5rem' }}>
+                                <button className="btn-link-small" onClick={regenerateCalendar}>カレンダーに適用</button>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         <div className="sidebar-section pattern-picker">

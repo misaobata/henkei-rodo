@@ -1181,3 +1181,42 @@ td {
   font-weight: 800;
   margin-top: 2px;
 }
+
+/* Status Tags */
+.status-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-tag.draft {
+  background: #edf2f7;
+  color: #718096;
+  border: 1px solid #cbd5e0;
+}
+
+.status-tag.published {
+  background: #c6f6d5;
+  color: #22543d;
+  border: 1px solid #9ae6b4;
+}
+
+/* Default Pattern Badge */
+.default-badge {
+  font-size: 10px;
+  background: #4a5568;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 8px;
+  font-weight: 600;
+}
+
+/* Calendar Month Status Action */
+.month-status-action {
+  margin-left: auto;
+}
